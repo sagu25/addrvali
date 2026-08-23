@@ -1,0 +1,23 @@
+# Source screenshots (ATCO SOW / rules / internal model code) - local reference only
+IMG_*.jpeg
+IMG_*.jpg
+IMG_*.png
+
+# Python
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.pytest_cache/
+*.pyc
+
+# Environment files - never commit real credentials, only .env.example
+backend/.env
+frontend/.env
+
+# Node / Vite
+frontend/node_modules/
+frontend/dist/
+
+# OS / editor
+.DS_Store
+Thumbs.db
