@@ -76,6 +76,33 @@
   font-style: italic;
 }
 
+.source-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin: 0 6px 6px 0;
+  vertical-align: middle;
+}
+
+.source-azure {
+  background: var(--green-bg);
+  color: var(--green);
+}
+
+.source-fallback {
+  background: var(--border);
+  color: var(--text-muted);
+}
+
+.source-fallback-error {
+  background: var(--red-bg);
+  color: var(--red);
+}
+
 .bubble-file {
   font-size: 13px;
   opacity: 0.85;

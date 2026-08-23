@@ -102,7 +102,12 @@ def _llm_explanation(result: RecordValidationResult) -> str | None:
 
 
 def explain_record(result: RecordValidationResult) -> RecordValidationResult:
-    explanation = _llm_explanation(result) or _template_explanation(result)
-    result.aiExplanation = explanation
+    llm_explanation = _llm_explanation(result)
+    if llm_explanation is not None:
+        result.aiExplanation = llm_explanation
+        result.explanationSource = "azure_openai"
+    else:
+        result.aiExplanation = _template_explanation(result)
+        result.explanationSource = "template"
     result.suggestedCorrection = _template_suggested_correction(result)
     return result

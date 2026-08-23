@@ -39,7 +39,16 @@ export function RecordRow({ record }) {
         </p>
       )}
 
-      {record.aiExplanation && <p className="record-explanation">{record.aiExplanation}</p>}
+      {record.aiExplanation && (
+        <p className="record-explanation">
+          {record.explanationSource && (
+            <span className={`source-badge ${record.explanationSource === 'azure_openai' ? 'source-azure' : 'source-fallback'}`}>
+              {record.explanationSource === 'azure_openai' ? 'Azure OpenAI' : 'Rule-based (no Azure OpenAI)'}
+            </span>
+          )}
+          {record.aiExplanation}
+        </p>
+      )}
 
       {issues.length > 0 && (
         <ul className="issue-list">

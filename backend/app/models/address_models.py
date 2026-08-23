@@ -148,6 +148,7 @@ class RecordValidationResult(BaseModel):
     preDispatchValidation: Optional[ValidationComponentResult] = None
 
     aiExplanation: Optional[str] = None
+    explanationSource: Optional[str] = None  # "azure_openai" | "template"
     suggestedCorrection: Optional[Dict[str, Any]] = None
 
 

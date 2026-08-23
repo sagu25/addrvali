@@ -1,12 +1,21 @@
 import RecordDetails, { RecordRow } from './RecordDetails'
 
+const SOURCE_BADGE = {
+  azure_openai: { label: 'Azure OpenAI', className: 'source-azure' },
+  fallback_parser: { label: 'Rule-based (no Azure OpenAI)', className: 'source-fallback' },
+  fallback_after_azure_error: { label: 'Azure OpenAI call failed - fell back', className: 'source-fallback-error' },
+  no_batch: null,
+}
+
 export default function MessageBubble({ message }) {
-  const { role, text, fileName, batch, updatedRecord, isError } = message
+  const { role, text, fileName, batch, updatedRecord, source, isError } = message
+  const badge = source ? SOURCE_BADGE[source] : null
 
   return (
     <div className={`message-row message-row-${role}`}>
       <div className={`bubble bubble-${role} ${isError ? 'bubble-error' : ''}`}>
         {fileName && <div className="bubble-file">📎 {fileName}</div>}
+        {badge && <div className={`source-badge ${badge.className}`}>{badge.label}</div>}
         {text && <div className="bubble-text">{text}</div>}
         {batch && <RecordDetails batch={batch} />}
         {updatedRecord && (

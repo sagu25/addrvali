@@ -74,7 +74,7 @@ export default function ChatWindow() {
         { role: 'user', content: text },
         { role: 'assistant', content: result.reply },
       ]
-      addMessage({ role: 'bot', text: result.reply, updatedRecord: result.updatedRecord })
+      addMessage({ role: 'bot', text: result.reply, updatedRecord: result.updatedRecord, source: result.source })
     } catch (error) {
       addMessage({ role: 'bot', text: `Sorry, something went wrong: ${error.message}`, isError: true })
     } finally {

@@ -5,6 +5,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from app.ai.chat_agent import handle_message
+from app.ai.status_check import check_azure_openai_status
 from app.api.chat_formatter import format_chat_message
 from app.ingestion.excel_parser import parse_workbook
 from app.models.address_models import BulkAddressValidationResponse
@@ -58,6 +59,8 @@ class ChatMessageRequest(BaseModel):
 class ChatMessageResponse(BaseModel):
     reply: str
     updatedRecord: dict[str, Any] | None = None
+    source: str
+    errorDetail: str | None = None
 
 
 @router.post("/chat/message", response_model=ChatMessageResponse)
@@ -72,6 +75,19 @@ async def chat_message(payload: ChatMessageRequest):
 
     result = handle_message(payload.batchId, payload.message, payload.history)
     return ChatMessageResponse(**result)
+
+
+@router.get("/ai/status")
+async def ai_status():
+    """
+    Definitive answer to 'is this actually calling Azure OpenAI right now?'
+    Checks that AZURE_OPENAI_* env vars are set (not placeholders) AND makes
+    one real, minimal chat completion call against the configured deployment
+    to prove connectivity/auth/deployment-name are actually correct - a
+    'configured' flag alone can't catch a wrong deployment name or an
+    expired key.
+    """
+    return check_azure_openai_status()
 
 
 @router.get("/health")

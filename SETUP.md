@@ -74,7 +74,7 @@ Produces three `.xlsx` files in `tests/fixtures/`:
 pytest -q
 ```
 
-Expect `28 passed`. If anything fails, fix it before moving on — the
+Expect `30 passed`. If anything fails, fix it before moving on — the
 frontend depends on this API contract being correct.
 
 **1.6 Start the server**
@@ -90,6 +90,28 @@ curl http://127.0.0.1:8000/api/health
 ```
 
 Expect `{"status":"ok"}`.
+
+**1.8 Confirm whether Azure OpenAI is actually being used**
+
+Don't guess from response wording — check directly:
+
+```powershell
+curl http://127.0.0.1:8000/api/ai/status
+```
+
+- `"configured": false` → no credentials found (or still the `REPLACE_ME`
+  placeholders) in `backend/.env`. Everything runs on the deterministic
+  fallback.
+- `"configured": true` but `"liveCallOk": false` → credentials are present
+  but wrong somehow (bad key, wrong deployment name, wrong endpoint,
+  firewall) — read `"liveCallError"` for the real reason.
+- `"liveCallOk": true` → a real call to your Azure OpenAI deployment
+  succeeded just now. This is the only way to be certain it's working.
+
+The same signal shows up live in the chat UI: every bot explanation and
+follow-up reply is tagged with a small badge — **Azure OpenAI** (green) or
+**Rule-based (no Azure OpenAI)** (grey) — so you never have to infer it
+from how the text sounds.
 
 ## 2. Frontend
 

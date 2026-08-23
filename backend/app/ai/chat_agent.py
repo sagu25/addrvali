@@ -169,17 +169,24 @@ def handle_message(batch_id: str, message: str, history: list[dict] | None = Non
         return {
             "reply": "I don't have that batch anymore - please upload the workbook again.",
             "updatedRecord": None,
+            "source": "no_batch",
         }
 
     if settings.azure_openai_configured:
         try:
-            return _llm_handle(batch_id, message, history or [])
+            result = _llm_handle(batch_id, message, history or [])
+            result["source"] = "azure_openai"
+            return result
         except Exception as exc:  # fall back rather than break the chat
             fallback = _fallback_handle(batch_id, message)
             fallback["reply"] = (
                 f"(Azure OpenAI call failed, falling back to command parsing: {exc})\n\n"
                 + fallback["reply"]
             )
+            fallback["source"] = "fallback_after_azure_error"
+            fallback["errorDetail"] = str(exc)
             return fallback
 
-    return _fallback_handle(batch_id, message)
+    result = _fallback_handle(batch_id, message)
+    result["source"] = "fallback_parser"
+    return result

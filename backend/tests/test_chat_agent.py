@@ -67,6 +67,7 @@ def test_fallback_row_lookup():
     batch = _load_mixed_batch()
     response = handle_message(batch.batchId, "why is row 2 red?")
     assert "row 2" in response["reply"].lower() or "streetname" in response["reply"].lower()
+    assert response["source"] == "fallback_parser"
 
 
 def test_fallback_what_if():
@@ -85,3 +86,12 @@ def test_fallback_status_list():
 def test_unknown_batch_id_returns_friendly_message():
     response = handle_message("does-not-exist", "row 1")
     assert "upload" in response["reply"].lower()
+    assert response["source"] == "no_batch"
+
+
+def test_explanations_are_template_sourced_without_azure_credentials():
+    # With no AZURE_OPENAI_* env vars set, every explanation must come from
+    # the template path, never silently claim to be from Azure OpenAI.
+    batch = _load_mixed_batch()
+    for record in batch.results:
+        assert record.explanationSource == "template"
