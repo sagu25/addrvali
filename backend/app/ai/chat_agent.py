@@ -1,25 +1,24 @@
 """
 Follow-up chat over an already-validated batch.
 
-When Azure OpenAI is configured, this runs a real tool-calling loop: the
-model decides whether to call get_record / recheck_record / list_records
+Azure OpenAI is the only way this answers questions - there is no
+command-parser fallback. It runs a real tool-calling loop: the model
+decides whether to call get_record / recheck_record / list_records
 against the deterministic pipeline and answers from the actual results -
 this is the "agentic" piece (the model chooses actions and reasons over
 live tool output across turns, instead of narrating a single precomputed
 result).
 
-Without Azure OpenAI configured, falls back to a small deterministic
-command parser covering the same three tools so the chat still works
-end-to-end with placeholder credentials. Its supported syntax is
-intentionally explicit (see HELP_TEXT) rather than open-ended NLP.
+If Azure OpenAI isn't configured, or a call fails, this returns an
+explicit, unmistakable message saying so (source = "not_configured" /
+"azure_openai_error") rather than silently answering from a regex parser
+that could be mistaken for real understanding.
 """
 
 import json
-import re
 
 from app.ai import tools as agent_tools
 from app.config import settings
-from app.models.address_models import RecordValidationResult
 from app.orchestration import batch_store
 
 MAX_TOOL_ITERATIONS = 4
@@ -33,15 +32,6 @@ SYSTEM_PROMPT = (
     "record has been approved, submitted, or dispatched - all actions "
     "remain advisory and a human still controls the real GIS/Maximo "
     "update. Keep answers to 2-4 sentences unless the user asks for a list."
-)
-
-HELP_TEXT = (
-    "I can answer questions about the batch you just uploaded. Try:\n"
-    "  - \"row 3\" - explain why a row has its status\n"
-    "  - \"row 9 distributionSiteId=DSID-3009\" - simulate fixing a field and re-check it\n"
-    "  - \"red rows\" / \"amber rows\" / \"green rows\" - list rows by status\n"
-    "(Azure OpenAI isn't configured, so I'm using a simple command parser "
-    "instead of free-form understanding - these exact patterns work best.)"
 )
 
 _client = None
@@ -113,57 +103,6 @@ def _llm_handle(batch_id: str, message: str, history: list[dict]) -> dict:
     }
 
 
-_ROW_PATTERN = re.compile(r"\brow\s*#?\s*(\d+)|record\s*#?\s*(\d+)|#(\d+)", re.I)
-_FIELD_VALUE_PATTERN = re.compile(r"([a-zA-Z /\-]+?)\s*[:=]\s*(.+)$")
-_STATUS_WORDS = {"green": "GREEN", "amber": "AMBER", "red": "RED"}
-
-
-def _fallback_handle(batch_id: str, message: str) -> dict:
-    lowered = message.strip().lower()
-
-    row_match = _ROW_PATTERN.search(message)
-
-    # Only treat this as a "list rows by status" request when no specific
-    # row was mentioned - otherwise "why is row 2 red?" would list every
-    # RED row instead of answering about row 2.
-    if not row_match:
-        for word, status in _STATUS_WORDS.items():
-            if word in lowered:
-                result = agent_tools.list_records(batch_id, status)
-                if "error" in result:
-                    return {"reply": result["error"], "updatedRecord": None}
-                if result["count"] == 0:
-                    return {"reply": f"No {status} rows in this batch.", "updatedRecord": None}
-                lines = [f"{status} rows ({result['count']}):"]
-                lines.extend(f"  - Row {r['rowId']} ({r['servicePointKey'] or 'no key'})" for r in result["rows"])
-                return {"reply": "\n".join(lines), "updatedRecord": None}
-        return {"reply": HELP_TEXT, "updatedRecord": None}
-
-    row_id = int(next(g for g in row_match.groups() if g))
-    remainder = message[row_match.end():].strip(" ,.-")
-
-    field_match = _FIELD_VALUE_PATTERN.match(remainder) if remainder else None
-    if field_match:
-        raw_field, value = field_match.group(1).strip(), field_match.group(2).strip()
-        result = agent_tools.recheck_record(batch_id, row_id, {raw_field: value})
-        if "error" in result:
-            return {"reply": result["error"], "updatedRecord": None}
-        status = result["finalStatus"]
-        return {
-            "reply": (
-                f"If row {row_id} had {raw_field} = \"{value}\", it would validate as "
-                f"{status}. {result.get('aiExplanation', '')}\n(This is a what-if check only - nothing was saved.)"
-            ),
-            "updatedRecord": result,
-        }
-
-    result = agent_tools.get_record(batch_id, row_id)
-    if "error" in result:
-        return {"reply": result["error"], "updatedRecord": None}
-    explanation = result.get("aiExplanation") or f"Row {row_id} is {result['finalStatus']}."
-    return {"reply": explanation, "updatedRecord": None}
-
-
 def handle_message(batch_id: str, message: str, history: list[dict] | None = None) -> dict:
     if batch_store.get_batch(batch_id) is None:
         return {
@@ -172,21 +111,26 @@ def handle_message(batch_id: str, message: str, history: list[dict] | None = Non
             "source": "no_batch",
         }
 
-    if settings.azure_openai_configured:
-        try:
-            result = _llm_handle(batch_id, message, history or [])
-            result["source"] = "azure_openai"
-            return result
-        except Exception as exc:  # fall back rather than break the chat
-            fallback = _fallback_handle(batch_id, message)
-            fallback["reply"] = (
-                f"(Azure OpenAI call failed, falling back to command parsing: {exc})\n\n"
-                + fallback["reply"]
-            )
-            fallback["source"] = "fallback_after_azure_error"
-            fallback["errorDetail"] = str(exc)
-            return fallback
+    if not settings.azure_openai_configured:
+        return {
+            "reply": (
+                "Azure OpenAI is not configured, so I can't answer questions "
+                "yet. Set AZURE_OPENAI_ENDPOINT / AZURE_OPENAI_API_KEY / "
+                "AZURE_OPENAI_DEPLOYMENT in backend/.env and restart the "
+                "server, then check GET /api/ai/status to confirm."
+            ),
+            "updatedRecord": None,
+            "source": "not_configured",
+        }
 
-    result = _fallback_handle(batch_id, message)
-    result["source"] = "fallback_parser"
-    return result
+    try:
+        result = _llm_handle(batch_id, message, history or [])
+        result["source"] = "azure_openai"
+        return result
+    except Exception as exc:
+        return {
+            "reply": f"Azure OpenAI call failed: {exc}",
+            "updatedRecord": None,
+            "source": "azure_openai_error",
+            "errorDetail": str(exc),
+        }

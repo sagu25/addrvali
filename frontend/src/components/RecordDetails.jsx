@@ -4,6 +4,18 @@ const STATUS_STYLE = {
   RED: { emoji: '🔴', label: 'Blocked' },
 }
 
+const EXPLANATION_SOURCE_STYLE = {
+  azure_openai: { label: 'Azure OpenAI', className: 'source-azure' },
+  not_configured: { label: 'Azure OpenAI not configured', className: 'source-fallback' },
+  azure_openai_error: { label: 'Azure OpenAI call failed', className: 'source-fallback-error' },
+}
+
+function ExplanationSourceBadge({ source }) {
+  const style = EXPLANATION_SOURCE_STYLE[source]
+  if (!style) return null
+  return <span className={`source-badge ${style.className}`}>{style.label}</span>
+}
+
 function componentIssues(component) {
   if (!component) return []
   return [
@@ -41,11 +53,7 @@ export function RecordRow({ record }) {
 
       {record.aiExplanation && (
         <p className="record-explanation">
-          {record.explanationSource && (
-            <span className={`source-badge ${record.explanationSource === 'azure_openai' ? 'source-azure' : 'source-fallback'}`}>
-              {record.explanationSource === 'azure_openai' ? 'Azure OpenAI' : 'Rule-based (no Azure OpenAI)'}
-            </span>
-          )}
+          {record.explanationSource && <ExplanationSourceBadge source={record.explanationSource} />}
           {record.aiExplanation}
         </p>
       )}

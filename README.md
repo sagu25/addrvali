@@ -16,8 +16,10 @@ until real ATCO endpoints are confirmed.
 
 - **Backend**: FastAPI + Pydantic (Python 3.11+)
 - **Frontend**: React + Vite
-- **AI (explanations only)**: Azure OpenAI, optional — falls back to
-  templated text if credentials aren't set, so the POC runs standalone.
+- **AI (explanations + follow-up chat)**: Azure OpenAI only — there is no
+  templated/rule-based fallback. Without credentials configured, the app
+  says so explicitly (`explanationSource`/`source` = `"not_configured"`)
+  rather than substituting text that could be mistaken for a real answer.
 
 For step-by-step install and run instructions, see
 [`SETUP.md`](SETUP.md). The quick version:
@@ -29,9 +31,14 @@ cd backend
 python -m venv .venv
 .venv/Scripts/activate        # Windows
 pip install -r requirements.txt
-cp .env.example .env          # fill in Azure OpenAI creds later; POC runs without them
+cp .env.example .env          # fill in real Azure OpenAI creds - required for explanations/chat
 uvicorn app.main:app --reload --port 8000
 ```
+
+The rule-based validation pipeline (rule matrix, mocked geocoding, mocked
+Maximo check, Green/Amber/Red status) works with no credentials at all.
+Explanations and follow-up chat require real Azure OpenAI credentials —
+verify with `curl http://127.0.0.1:8000/api/ai/status` (see SETUP.md).
 
 Run tests:
 
@@ -74,13 +81,12 @@ precomputed result — it calls back into the deterministic pipeline live:
   value (never saves it — matches "explains, never decides")
 - `"which rows are red?"` → lists rows filtered by status
 
-With `AZURE_OPENAI_*` configured in `backend/.env`, this runs as a real
-OpenAI tool-calling loop (`backend/app/ai/chat_agent.py`) — the model
-decides which tool to call and reasons over the live result. Without
-credentials, a small deterministic command parser covers the same three
-tools so the chat still works end-to-end; it only understands the explicit
-patterns above (see the bot's own help text if you send an unrecognised
-message).
+This runs as a real Azure OpenAI tool-calling loop
+(`backend/app/ai/chat_agent.py`) — the model decides which tool to call and
+reasons over the live result. There is no fallback: without
+`AZURE_OPENAI_*` configured, or if a call fails, you get an explicit
+message saying so (`source` = `"not_configured"` / `"azure_openai_error"`,
+shown as a badge in the UI) rather than a guessed answer.
 
 ## How synthetic outcomes are controlled
 

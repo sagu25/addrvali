@@ -40,10 +40,8 @@ pip install -r requirements.txt
 copy .env.example .env
 ```
 
-Leave `.env` as-is for now — Azure OpenAI is optional. With placeholder
-values, the app automatically falls back to templated explanations and a
-deterministic command parser for follow-up chat (see README → "Follow-up
-chat"). Fill in real values later:
+Fill in real values — there is no fallback, so explanations and follow-up
+chat will explicitly refuse to answer (not guess) until this is done:
 
 ```
 AZURE_OPENAI_ENDPOINT=https://<your-resource>.openai.azure.com/
@@ -52,8 +50,10 @@ AZURE_OPENAI_DEPLOYMENT=<your-deployment-name>
 AZURE_OPENAI_API_VERSION=2024-02-15-preview
 ```
 
-No code or restart-order changes are needed when you add real
-credentials — just edit `.env` and restart the server.
+The rule-matrix validation itself (Green/Amber/Red status) still works
+with placeholder values — only the AI narration and chat require real
+credentials. Restart the server after editing `.env`; it only reads env
+vars at startup.
 
 **1.4 Generate the synthetic demo workbooks** (first time only)
 
@@ -74,7 +74,7 @@ Produces three `.xlsx` files in `tests/fixtures/`:
 pytest -q
 ```
 
-Expect `30 passed`. If anything fails, fix it before moving on — the
+Expect `32 passed`. If anything fails, fix it before moving on — the
 frontend depends on this API contract being correct.
 
 **1.6 Start the server**
@@ -100,8 +100,9 @@ curl http://127.0.0.1:8000/api/ai/status
 ```
 
 - `"configured": false` → no credentials found (or still the `REPLACE_ME`
-  placeholders) in `backend/.env`. Everything runs on the deterministic
-  fallback.
+  placeholders) in `backend/.env`. Every explanation and chat reply will
+  explicitly say "Azure OpenAI is not configured" — there is no fallback
+  text standing in for it.
 - `"configured": true` but `"liveCallOk": false` → credentials are present
   but wrong somehow (bad key, wrong deployment name, wrong endpoint,
   firewall) — read `"liveCallError"` for the real reason.
@@ -109,9 +110,10 @@ curl http://127.0.0.1:8000/api/ai/status
   succeeded just now. This is the only way to be certain it's working.
 
 The same signal shows up live in the chat UI: every bot explanation and
-follow-up reply is tagged with a small badge — **Azure OpenAI** (green) or
-**Rule-based (no Azure OpenAI)** (grey) — so you never have to infer it
-from how the text sounds.
+follow-up reply is tagged with a small badge — **Azure OpenAI** (green),
+**Azure OpenAI not configured** (grey), or **Azure OpenAI call failed**
+(red) — so you never have to infer it from how the text sounds, and a
+broken integration is visibly broken, not silently degraded.
 
 ## 2. Frontend
 
@@ -148,15 +150,20 @@ a 🟢 3 / 🟠 2 / 🔴 5 summary with expandable per-row detail.
 
 ## 3. Confirm the full loop works
 
-With both servers running:
+With both servers running and real Azure OpenAI credentials in
+`backend/.env`:
 
-1. Upload `mixed_batch.xlsx` in the chat.
+1. Upload `mixed_batch.xlsx` in the chat. The summary and per-row
+   explanations should carry a green **Azure OpenAI** badge, not grey.
 2. Ask `why is row 9 red?` — should explain the missing Maximo linking
-   field.
-3. Ask `row 9 distributionSiteId=DSID-3009` — should show a what-if card
-   flipping to GREEN, labeled "nothing was saved."
+   field in the model's own words (free-form phrasing works, not just
+   exact patterns).
+3. Ask something like `if I fill in the missing distribution site ID for
+   row 9, would it pass?` — should call the tool itself and show a what-if
+   card flipping to GREEN, labeled "nothing was saved."
 
-If all three work, the setup is complete.
+If all three work with the Azure OpenAI badge showing, the setup is
+complete. If you see a grey or red badge instead, go back to step 1.8.
 
 ## Troubleshooting
 
@@ -182,12 +189,15 @@ matching `BulkAddressCsvRow` field names or the ESRI table's business
 names (see `backend/app/ingestion/excel_parser.py` → `HEADER_ALIASES`
 for the accepted header variants).
 
-**Follow-up chat gives unhelpful answers**
-With placeholder Azure OpenAI credentials, the chat runs on a small
-deterministic command parser, not free-form understanding — it only
-recognizes the exact patterns in the bot's own help text (`row N`,
-`row N field=value`, `red/amber/green rows`). Free-form questions need
-real Azure OpenAI credentials in `backend/.env`.
+**Chat says "Azure OpenAI is not configured"**
+There is no fallback by design — see step 1.8. Fill in real
+`AZURE_OPENAI_*` values in `backend/.env`, restart the server, and confirm
+with `curl http://127.0.0.1:8000/api/ai/status` that `liveCallOk` is `true`.
+
+**Chat says "Azure OpenAI call failed: ..."**
+Credentials are configured but the call itself failed — the error message
+after the colon is from Azure directly (wrong deployment name, expired
+key, quota exceeded, etc.). Same diagnosis path: `/api/ai/status`.
 
 ## Project structure
 

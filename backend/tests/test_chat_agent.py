@@ -1,9 +1,14 @@
+import json
 import os
 
+import app.ai.chat_agent as chat_agent
 from app.ai.chat_agent import handle_message
 from app.ai.tools import get_record, list_records, recheck_record
+from app.config import settings
 from app.ingestion.excel_parser import parse_workbook
 from app.orchestration.batch_validator import validate_batch
+
+from tests.fake_azure import FakeAzureClient, FakeMessage, FakeResponse, FakeToolCall, configure_fake_azure
 
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
 
@@ -63,35 +68,44 @@ def test_list_records_filters_by_status():
     assert green["count"] == 3
 
 
-def test_fallback_row_lookup():
-    batch = _load_mixed_batch()
-    response = handle_message(batch.batchId, "why is row 2 red?")
-    assert "row 2" in response["reply"].lower() or "streetname" in response["reply"].lower()
-    assert response["source"] == "fallback_parser"
-
-
-def test_fallback_what_if():
-    batch = _load_mixed_batch()
-    response = handle_message(batch.batchId, "row 2 streetName=Fixed Avenue")
-    assert response["updatedRecord"] is not None
-    assert response["updatedRecord"]["finalStatus"] == "GREEN"
-
-
-def test_fallback_status_list():
-    batch = _load_mixed_batch()
-    response = handle_message(batch.batchId, "which rows are red?")
-    assert "Row 2" in response["reply"] or "row 2" in response["reply"].lower()
-
-
 def test_unknown_batch_id_returns_friendly_message():
     response = handle_message("does-not-exist", "row 1")
     assert "upload" in response["reply"].lower()
     assert response["source"] == "no_batch"
 
 
-def test_explanations_are_template_sourced_without_azure_credentials():
-    # With no AZURE_OPENAI_* env vars set, every explanation must come from
-    # the template path, never silently claim to be from Azure OpenAI.
+def test_without_azure_configured_returns_explicit_not_configured_message():
+    # No AZURE_OPENAI_* env vars set in the test environment - there is no
+    # fallback parser anymore, so this must say so plainly, not guess an answer.
     batch = _load_mixed_batch()
-    for record in batch.results:
-        assert record.explanationSource == "template"
+    response = handle_message(batch.batchId, "why is row 2 red?")
+    assert response["source"] == "not_configured"
+    assert "not configured" in response["reply"].lower()
+
+
+def test_llm_handle_answers_using_tool_call_then_final_message(monkeypatch):
+    batch = _load_mixed_batch()
+    configure_fake_azure(monkeypatch, settings)
+
+    tool_call = FakeToolCall("call_1", "get_record", json.dumps({"rowId": 2}))
+    first_response = FakeResponse(FakeMessage(content=None, tool_calls=[tool_call]))
+    final_response = FakeResponse(FakeMessage(content="Row 2 is red because streetName is missing.", tool_calls=None))
+    fake_client = FakeAzureClient(responses=[first_response, final_response])
+    monkeypatch.setattr(chat_agent, "_get_client", lambda: fake_client)
+
+    response = handle_message(batch.batchId, "why is row 2 red?")
+    assert response["source"] == "azure_openai"
+    assert "streetname" in response["reply"].lower()
+
+
+def test_llm_handle_failure_reports_explicit_error(monkeypatch):
+    batch = _load_mixed_batch()
+    configure_fake_azure(monkeypatch, settings)
+    monkeypatch.setattr(
+        chat_agent, "_get_client", lambda: FakeAzureClient(raises=RuntimeError("bad deployment name"))
+    )
+
+    response = handle_message(batch.batchId, "why is row 2 red?")
+    assert response["source"] == "azure_openai_error"
+    assert "bad deployment name" in response["reply"]
+    assert response["errorDetail"] == "bad deployment name"

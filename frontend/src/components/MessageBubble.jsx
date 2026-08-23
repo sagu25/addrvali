@@ -2,8 +2,8 @@ import RecordDetails, { RecordRow } from './RecordDetails'
 
 const SOURCE_BADGE = {
   azure_openai: { label: 'Azure OpenAI', className: 'source-azure' },
-  fallback_parser: { label: 'Rule-based (no Azure OpenAI)', className: 'source-fallback' },
-  fallback_after_azure_error: { label: 'Azure OpenAI call failed - fell back', className: 'source-fallback-error' },
+  not_configured: { label: 'Azure OpenAI not configured', className: 'source-fallback' },
+  azure_openai_error: { label: 'Azure OpenAI call failed', className: 'source-fallback-error' },
   no_batch: null,
 }
 
