@@ -24,7 +24,9 @@ until real ATCO endpoints are confirmed.
 For step-by-step install and run instructions, see [`SETUP.md`](SETUP.md).
 For a full explanation of the architecture, every module, the request
 flow, and the design decisions behind them, see
-[`ARCHITECTURE.md`](ARCHITECTURE.md). The quick version:
+[`ARCHITECTURE.md`](ARCHITECTURE.md). Before presenting this to
+stakeholders, read [`DEMO_QA.md`](DEMO_QA.md) — what's missing and
+answers to the questions most likely to come up. The quick version:
 
 ## Backend setup
 
