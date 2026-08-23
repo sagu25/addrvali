@@ -21,8 +21,10 @@ until real ATCO endpoints are confirmed.
   says so explicitly (`explanationSource`/`source` = `"not_configured"`)
   rather than substituting text that could be mistaken for a real answer.
 
-For step-by-step install and run instructions, see
-[`SETUP.md`](SETUP.md). The quick version:
+For step-by-step install and run instructions, see [`SETUP.md`](SETUP.md).
+For a full explanation of the architecture, every module, the request
+flow, and the design decisions behind them, see
+[`ARCHITECTURE.md`](ARCHITECTURE.md). The quick version:
 
 ## Backend setup
 
