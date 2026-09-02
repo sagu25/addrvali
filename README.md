@@ -26,7 +26,11 @@ For a full explanation of the architecture, every module, the request
 flow, and the design decisions behind them, see
 [`ARCHITECTURE.md`](ARCHITECTURE.md). Before presenting this to
 stakeholders, read [`DEMO_QA.md`](DEMO_QA.md) — what's missing and
-answers to the questions most likely to come up. The quick version:
+answers to the questions most likely to come up. To show the target
+*production* experience (not just the current POC), open
+[`PRODUCT_VISION.html`](PRODUCT_VISION.html) directly in a browser — a
+self-contained, scripted walkthrough of the full batch-upload pipeline
+and agentic follow-up chat. The quick version:
 
 ## Backend setup
 
